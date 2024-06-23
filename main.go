@@ -14,6 +14,9 @@ func main() {
 	    WriteTimeout:   10 * time.Second,
 	    MaxHeaderBytes: 1 << 20,
     }
+
+    mux.Handle("/", http.FileServer(http.Dir("./")))
+
     s.ListenAndServe()
 }
 
