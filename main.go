@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -11,9 +12,19 @@ type apiConfig struct {
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
-    
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cfg.fileserverHits++
+		next.ServeHTTP(w, r)
+	})
+}
 
-    return next
+func (cfg *apiConfig) handlerWriteHits(w http.ResponseWriter, r *http.Request) {
+    s := fmt.Sprintf("Hits: %v", cfg.fileserverHits)
+    w.Write([]byte(s))
+}
+
+func (cfg *apiConfig) handlerResetHits(w http.ResponseWriter, r *http.Request) {
+       cfg.fileserverHits = 0
 }
 
 func main() {
@@ -23,6 +34,8 @@ func main() {
     mux := http.NewServeMux()
     mux.Handle("/app/*", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("./")))))
     mux.HandleFunc("/healthz", handlerReadiness)
+    mux.HandleFunc("/metrics", apiCfg.handlerWriteHits)
+    mux.HandleFunc("/reset", apiCfg.handlerResetHits)
 
     s := http.Server{
 	    Addr:           port,
@@ -41,3 +54,4 @@ func handlerReadiness(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(200)
     w.Write([]byte("OK"))
 }
+
