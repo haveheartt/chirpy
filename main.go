@@ -4,25 +4,48 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
+
+	"github.com/haveheartt/chirpy/database"
 )
 
 type apiConfig struct {
     fileserverHits int
 }
 
+type ChirpyDB struct {
+    db *database.DB
+}
+
+type Chirp struct {
+	ID   int    `json:"id"`
+	Body string `json:"body"`
+}
+
+var db *database.DB
+
 func main() {
     port := ":8080"
     apiCfg := apiConfig{
         fileserverHits: 0,
     }
-   
+
+    db, err := database.NewDB("database.json")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    chirpyDB := ChirpyDB{db: db}
+
     mux := http.NewServeMux()
     mux.Handle("/app/*", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("./")))))
     mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
     mux.HandleFunc("GET /api/healthz", handlerReadiness)
     mux.HandleFunc("GET /api/reset", apiCfg.handlerReset)
-    mux.HandleFunc("POST /api/validate_chirp", handlerChirpsValidate)
+    mux.HandleFunc("POST /api/chirps", chirpyDB.handlerChirpsCreation)
+    mux.HandleFunc("GET /api/chirps", chirpyDB.handlerChirpsGet)
 
     s := http.Server{
 	    Addr:           port,
@@ -36,12 +59,30 @@ func main() {
     log.Fatal(s.ListenAndServe())
 }
 
-func handlerChirpsValidate(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Body string `json:"body"`
+func (chirpyDB *ChirpyDB) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
+    dbChirps, err := chirpyDB.db.GetChirps()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+	chirps := []Chirp{}
+	for _, dbChirp := range dbChirps {
+		chirps = append(chirps, Chirp{
+			ID:   dbChirp.ID,
+			Body: dbChirp.Body,
+		})
 	}
-	type returnVals struct {
-		Valid bool `json:"valid"`
+
+	sort.Slice(chirps, func(i, j int) bool {
+		return chirps[i].ID < chirps[j].ID
+	})
+
+	respondWithJSON(w, http.StatusOK, chirps)
+}
+
+func (chirpyDB *ChirpyDB) handlerChirpsCreation(w http.ResponseWriter, r *http.Request) {
+ 	type parameters struct {
+		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -52,15 +93,46 @@ func handlerChirpsValidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const maxChirpLength = 140
-	if len(params.Body) > maxChirpLength {
-		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
+    cleaned := chirpsValidate(params.Body, w)
+
+	chirp, err := chirpyDB.db.CreateChirp(cleaned)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create chirp")
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, returnVals{
-		Valid: true,
+	respondWithJSON(w, http.StatusCreated, Chirp{
+		ID:   chirp.ID,
+		Body: chirp.Body,
 	})
+}
+
+func chirpsValidate(body string, w http.ResponseWriter) string {
+	const maxChirpLength = 140
+	if len(body) > maxChirpLength {
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
+		return ""
+	}
+ 
+    return cleanBody(body)
+}
+
+func cleanBody(body string) string {
+    str := strings.Split(body, " ")
+
+    for i, word := range str {
+        if strings.ToLower(word) == "kerfuffle" {
+            str[i] = "****"
+        } else if strings.ToLower(word) == "sharbert" {
+            str[i] = "****"
+        } else if strings.ToLower(word) == "fornax" {
+            str[i] = "****"
+        } else {
+            continue
+        }
+    }
+
+    return strings.Join(str, " ")
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {
