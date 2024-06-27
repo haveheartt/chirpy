@@ -101,7 +101,7 @@ func (db *DB) writeDB(dbStructure DBStructure) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	dat, err := json.MarshalIndent(dbStructure, "", " ")
+	dat, err := json.Marshal(dbStructure)
 	if err != nil {
 		return err
 	}
