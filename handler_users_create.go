@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
 type User struct {
 	ID   int    `json:"id"`
 	Email string `json:"email"`
+    Token string `json:"token"`
 }
 
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
@@ -20,9 +22,8 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters")
-		return
-	}
+	    log.Fatalf("erro create user: %v", err)
+    }
 
 	user, err := cfg.DB.CreateUser(params.Email, params.Password)
 	if err != nil {

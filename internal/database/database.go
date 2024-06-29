@@ -3,9 +3,12 @@ package database
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
+	"strconv"
 	"sync"
-    "golang.org/x/crypto/bcrypt"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type DB struct {
@@ -58,6 +61,53 @@ func (db *DB) LoginUser(email string, password string) (User, error) {
 
     return authUser, nil
 }
+
+func (db *DB) UpdateUser(id string, email string, password string) (User, error) {
+    dbStructure, err := db.loadDB()
+    if err != nil {
+        return User{}, err
+    }
+
+    encrypted, err := bcrypt.GenerateFromPassword([]byte(password), 4)
+    if err != nil {
+        return User{}, err
+    }
+
+    intID, err := strconv.Atoi(id)
+    if err != nil {
+        log.Fatalf("erro id %v", err)
+    }
+
+    requestedUser := User{}
+    for _, user := range dbStructure.Users {
+        if user.ID == intID {
+            requestedUser = user
+        } else {
+            continue
+        }
+    }
+
+    if requestedUser.Email == "" {
+       err = errors.New("Not found") 
+    } 
+
+
+    user := User{
+        ID: intID,
+        Email: email,
+        Password: string(encrypted),
+    }
+
+    dbStructure.Users[intID] = user
+
+    err = db.writeDB(dbStructure)
+    if err != nil{
+        return User{}, err
+    }
+
+    return user, nil
+}
+
 
 func (db *DB) CreateUser(email string, password string) (User, error) {
     dbStructure, err := db.loadDB()
