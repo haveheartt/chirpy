@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"sync"
+    "golang.org/x/crypto/bcrypt"
 )
 
 type DB struct {
@@ -25,6 +26,7 @@ type Chirp struct {
 type User struct {
     ID int `json:"id"`
     Email string `json:"email"`
+    Password string `json:"password"`
 }
 
 func NewDB(path string) (*DB, error) {
@@ -36,8 +38,34 @@ func NewDB(path string) (*DB, error) {
 	return db, err
 }
 
-func (db *DB) CreateUser(email string) (User, error) {
+func (db *DB) LoginUser(email string, password string) (User, error) {
     dbStructure, err := db.loadDB()
+    if err != nil {
+        return User{}, err
+    }
+
+    authUser := User{}
+
+    for _, user := range dbStructure.Users {
+        if user.Email == email {
+            err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+            if err != nil {
+                return User{}, err
+            }
+            authUser = user
+        }
+    }
+
+    return authUser, nil
+}
+
+func (db *DB) CreateUser(email string, password string) (User, error) {
+    dbStructure, err := db.loadDB()
+    if err != nil {
+        return User{}, err
+    }
+
+    encrypted, err := bcrypt.GenerateFromPassword([]byte(password), 4)
     if err != nil {
         return User{}, err
     }
@@ -46,6 +74,7 @@ func (db *DB) CreateUser(email string) (User, error) {
     user := User{
         ID: id,
         Email: email,
+        Password: string(encrypted),
     }
 
     dbStructure.Users[id] = user
