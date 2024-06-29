@@ -2,18 +2,21 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
-	"strconv"
-	"time"
+        "time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/haveheartt/chirpy/internal/auth"
 )
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
     type parameters struct {
 		Email string `json:"email"`
         Password string `json:"password"`
+    }
+
+    type response struct {
+        User
+        Token string `json:"token"`
     }
 
 	decoder := json.NewDecoder(r.Body)
@@ -23,41 +26,35 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters")
 		return
 	}
-
-   
-	user, err := cfg.DB.LoginUser(params.Email, params.Password)
+ 
+	user, err := cfg.DB.GetUserByEmail(params.Email)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't create user")
+		respondWithError(w, http.StatusUnauthorized, "Couldn't get successfully")
+		return
+    }
+
+err = auth.CheckPasswordHash(params.Password, user.HashedPassword)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid password")
 		return
 	}
 
-    token, err := handleJWT(user.ID, cfg)
-    if err != nil {
-        log.Fatalf("error jwt handle: %v", err)
-    }
+	accessToken, err := auth.MakeJWT(
+		user.ID,
+		cfg.jwtSecret,
+		time.Hour,
+	)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create access JWT")
+		return
+	}
 
-	respondWithJSON(w, http.StatusOK, User{
-		ID:   user.ID,
-		Email: user.Email,
-	    Token: token,
-    })
+	respondWithJSON(w, http.StatusOK, response{
+		User: User{
+			ID:    user.ID,
+			Email: user.Email,
+		},
+		Token: accessToken,
+	})
 }
 
-func handleJWT(id int, cfg *apiConfig) (string, error){
-    intID := int(id)
-    strID := strconv.Itoa(intID)
-
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-        Issuer: "chirpy",
-        IssuedAt: jwt.NewNumericDate(time.Now().Local()),
-        ExpiresAt: &jwt.NumericDate{time.Now().Add(time.Duration(10) * time.Second)},
-        Subject: strID,
-    })
-
-    jwt, err := token.SignedString([]byte(cfg.jwtSecret))
-    if err != nil {
-        log.Fatalf("jwt token error: %v", err)
-    }
-
-    return jwt, nil
-}
