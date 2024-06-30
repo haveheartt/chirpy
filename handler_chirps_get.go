@@ -23,7 +23,8 @@ func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, Chirp{
 		ID:   dbChirp.ID,
 		Body: dbChirp.Body,
-	})
+        AuthorID: dbChirp.AuthorID,
+    })
 }
 
 func (cfg *apiConfig) handlerChirpsRetrieve(w http.ResponseWriter, r *http.Request) {

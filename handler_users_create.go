@@ -10,30 +10,29 @@ import (
 )
 
 type User struct {
-	ID   int    `json:"id"`
-	Email string `json:"email"`
-    Token string `json:"token"`
+	ID       int    `json:"id"`
+	Email    string `json:"email"`
+	Password string `json:"-"`
 }
 
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
-        Password string `json:"password"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
-
-    type response struct {
-        User
-    }
+	type response struct {
+		User
+	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-	    respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters")
-        return
-    }
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters")
+		return
+	}
 
-    hashedPassword, err := auth.HashPassword(params.Password)
+	hashedPassword, err := auth.HashPassword(params.Password)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password")
 		return
@@ -57,3 +56,4 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 		},
 	})
 }
+
