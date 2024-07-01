@@ -17,7 +17,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		User
 		Token        string `json:"token"`
 		RefreshToken string `json:"refresh_token"`
-	}
+    }
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
@@ -32,7 +32,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't get user")
 		return
 	}
-
+ 
 	err = auth.CheckPasswordHash(params.Password, user.HashedPassword)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Invalid password")
@@ -65,7 +65,8 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		User: User{
 			ID:    user.ID,
 			Email: user.Email,
-		},
+            IsChirpRed: user.IsChirpyRed,
+        },
 		Token:        accessToken,
 		RefreshToken: refreshToken,
 	})
